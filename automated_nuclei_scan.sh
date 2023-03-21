@@ -1,21 +1,27 @@
 #!/bin/bash
 
-# Read the URLs from the input file
+set -euo pipefail
+
+# Define the input file and output directory
 input_file="$1"
-urls=($(cat "$input_file"))
+output_dir="$(pwd)/output"
 
-# Loop through the URLs and run a nuclei scan for each URL
-for url in "${urls[@]}"; do
+# Create the output directory if it does not exist
+mkdir -p "$output_dir"
+
+# Define the number of concurrent scans to run
+concurrent_scans=4
+
+# Define a function to run the nuclei scan for a URL
+run_scan() {
+  url="$1"
   echo "Scanning $url..."
-
-  # Create the output file name based on the URL
-  output_file=$(echo "$url" | sed 's/\//_/g').xml
-
-  # Run the nuclei scan and save the output to the output file
-  nuclei -u "$url" -o "$output_file" -store-resp
-
+  output_file="$output_dir/$(echo "$url" | sed 's#^https\?://##;s#/#_#g').xml"
+  nuclei -u "$url" -o "$output_file" -store-resp >/dev/null 2>&1
   echo "Scan complete for $url"
-done
+}
+
+# Loop through the URLs and run the nuclei scans concurrently using xargs
+cat "$input_file" | xargs -n1 -P "$concurrent_scans" -I{} bash -c 'run_scan "$@"' _ {}
 
 echo "All scans complete"
-
